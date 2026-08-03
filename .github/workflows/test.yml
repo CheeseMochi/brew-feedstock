@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up conda
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@v4
         with:
           activate-environment: condabrew
           python-version: "3.11"
