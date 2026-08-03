@@ -63,3 +63,20 @@ index 09ec44a..32924a4 100644
      relocation.add_replacement_pair(:library, LIBRARY_PLACEHOLDER, HOMEBREW_LIBRARY.to_s)
      relocation.add_replacement_pair(:perl, PERL_PLACEHOLDER, "#{HOMEBREW_PREFIX}/opt/perl/bin/perl")
      if (openjdk = openjdk_dep_name_if_applicable)
+diff --git a/bin/brew b/bin/brew
+index 46b6b39..1f0d4be 100755
+--- a/bin/brew
++++ b/bin/brew
+@@ -87,6 +87,12 @@ if [[ -L "${HOMEBREW_BREW_FILE}" ]]
+ then
+   BREW_FILE_DIRECTORY="$(symlink_target_directory "${HOMEBREW_BREW_FILE}" "${BREW_FILE_DIRECTORY}")"
+   HOMEBREW_REPOSITORY="${BREW_FILE_DIRECTORY%/*}"
++  # conda-brew: HOMEBREW_PREFIX above was derived from $0's literal (unresolved)
++  # path, which is one directory too shallow when reached via our one-hop
++  # $CONDA_PREFIX/bin/brew -> ../homebrew/bin/brew symlink. Align it with the
++  # symlink-resolved repository so `brew link` targets homebrew/bin, not the
++  # conda env's own shared bin/.
++  HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"
+ fi
+ 
+ # Try to find a /usr/local HOMEBREW_PREFIX where possible (for macOS x86_64 bottles)

@@ -14,6 +14,12 @@ requirements:
   build:
     - git
     - bash
+    # Not declared here, conda-build's isolated sandbox falls back to
+    # whatever `patch` is on the system PATH -- on macOS that's Apple's
+    # ancient BSD patch (2.0-12u11), which silently skips hunks it can't
+    # match cleanly instead of failing, so conda-brew-path-rewrite.patch
+    # would quietly not apply and ship stock, unpatched Homebrew.
+    - patch
   run:
     - bash >=4.0
     - git >=2.14.3
@@ -27,7 +33,7 @@ requirements:
     - xz
 
 build:
-  number: 0
+  number: 3
   skip: true  # [not osx]
 
 test:

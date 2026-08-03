@@ -66,7 +66,7 @@ run_build=true
 run_e2e=true
 
 case "$arg" in
-    quick)   ;; # run everything except e2e
+    quick)   run_e2e=false ;;
     e2e)     run_scripts=false; run_patch=false; run_build=false ;;
     scripts) run_patch=false; run_build=false; run_e2e=false ;;
     patch)   run_scripts=false; run_build=false; run_e2e=false ;;

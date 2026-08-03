@@ -36,6 +36,16 @@ bash tests/run.sh e2e       # full pipeline: build → install → brew test
   conda install -c conda-forge conda-build pyyaml
   ```
 
+  If `conda-build` fails with an `HTTPError`/404 fetching a `.msgpack.zst` shard
+  (CEP-16 sharded repodata, a still-buggy libmamba solver feature as of 2026),
+  disable it via env var rather than `conda config --set plugins.use_sharded_repodata false`
+  -- conda-build calls the solver through its own Python API, which doesn't
+  reliably pick up that config change the way a plain `conda install` does:
+  ```bash
+  CONDA_PLUGINS_USE_SHARDED_REPODATA=0 conda-build -c conda-forge recipe/
+  ```
+  CI sets this via `env:` in `.github/workflows/test.yml`.
+
 ## Running
 
 Activate the `condabrew` env first — the scripts call `conda-build`/`python3` directly and assume they're already on `PATH`, rather than wrapping each command in `conda run -n condabrew` (which double-resolves the env path when invoked from inside an already-active `condabrew`).

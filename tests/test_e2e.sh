@@ -13,6 +13,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RECIPE_DIR="$PROJECT_DIR/recipe"
+
+# CEP-16 sharded repodata is still buggy as of 2026 -- shard fetches can 404
+# and conda-build's/conda create's internal solver calls don't reliably pick
+# up a `conda config --set plugins.use_sharded_repodata false` change the way
+# a plain `conda install` does.
+export CONDA_PLUGINS_USE_SHARDED_REPODATA=0
+
 TEST_ENV=$(mktemp -d "${TMPDIR:-/tmp}/condabrew-e2e-env-XXXXXX")
 # Resolve to the canonical real path: $TMPDIR on macOS is a symlink
 # (/var/folders/... -> /private/var/folders/...) and brew reports the

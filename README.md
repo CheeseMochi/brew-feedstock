@@ -41,7 +41,7 @@ $CONDA_PREFIX/
 
 Only the `brew` CLI itself is symlinked into `$CONDA_PREFIX/bin` (to avoid shadowing conda packages with conflicting versions/names); everything a formula installs stays under `homebrew/`.
 
-**Path rewriting.** Homebrew computes its prefix by inspecting the binary location (`$PREFIX/homebrew/bin/brew` → `$PREFIX/homebrew`). The shipped patch relaxes bottle relocation checks so bottles built for the stock macOS prefixes (`/opt/homebrew` on ARM, `/usr/local` on Intel) get rewritten to `$CONDA_PREFIX/homebrew` at install time — no rebuild from source needed.
+**Path rewriting.** Homebrew computes its prefix by inspecting the binary location (`$PREFIX/homebrew/bin/brew` → `$PREFIX/homebrew`), but only fully resolves that through a symlink hop for `HOMEBREW_REPOSITORY` — not `HOMEBREW_PREFIX`, which stock `bin/brew` derives from `$0`'s literal (unresolved) path. Since only `brew` itself is symlinked into `$CONDA_PREFIX/bin` (see below), that left `HOMEBREW_PREFIX` one directory too shallow (`$CONDA_PREFIX` instead of `$CONDA_PREFIX/homebrew`), causing `brew link` to place formula binaries into the conda env's shared `bin/` instead of `homebrew/bin/`. The shipped patch fixes `bin/brew` to align `HOMEBREW_PREFIX` with the resolved repository, and separately relaxes bottle relocation checks so bottles built for the stock macOS prefixes (`/opt/homebrew` on ARM, `/usr/local` on Intel) get rewritten to `$CONDA_PREFIX/homebrew` at install time — no rebuild from source needed.
 
 **Activation hooks.** On `conda activate`, PATH gets `$CONDA_PREFIX/homebrew/{bin,sbin}` inserted right after `$CONDA_PREFIX/bin`, and `HOMEBREW_*` env vars are set. On `conda deactivate`, everything is cleaned up.
 

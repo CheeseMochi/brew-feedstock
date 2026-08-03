@@ -55,6 +55,7 @@ check_contains "patch has unified diff header (diff --git)" "$patch_content" "di
 check_contains "targets bottle_specification.rb" "$patch_content" "bottle_specification.rb"
 check_contains "targets formula_installer.rb" "$patch_content" "formula_installer.rb"
 check_contains "targets keg_relocate.rb" "$patch_content" "keg_relocate.rb"
+check_contains "targets bin/brew" "$patch_content" "bin/brew"
 
 # Check for key changes the patch should introduce:
 # 1. relaxes compatible_locations? (cellar.is_a?(String) || cellar.size >= prefix.size)
@@ -62,6 +63,7 @@ check_contains "targets keg_relocate.rb" "$patch_content" "keg_relocate.rb"
 # 3. adds /opt/homebrew as a replacement pair
 check_contains "relaxes compatible_locations for any cellar" "$patch_content" "size >="
 check_contains "sets skip_linkage to false" "$patch_content" "skip_linkage = false"
+check_contains "aligns HOMEBREW_PREFIX with resolved repository in bin/brew" "$patch_content" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
 
 echo ""
 
@@ -89,8 +91,12 @@ if git clone --depth 1 --branch "$VERSION" https://github.com/Homebrew/brew.git 
     # Apply patch for real and diff against originals to confirm changes are meaningful
     if [ -d "$TMPDIR_PATCH/brew-source/Library/Homebrew" ]; then
         # Pre-patch snapshot of key files
-        for ruby_file in bottle_specification.rb formula_installer.rb keg_relocate.rb; do
-            target="$TMPDIR_PATCH/brew-source/Library/Homebrew/$ruby_file"
+        for target_file in \
+            Library/Homebrew/bottle_specification.rb \
+            Library/Homebrew/formula_installer.rb \
+            Library/Homebrew/keg_relocate.rb \
+            bin/brew; do
+            target="$TMPDIR_PATCH/brew-source/$target_file"
             if [ -f "$target" ]; then
                 cp "$target" "${target}.orig"
             fi
@@ -100,14 +106,18 @@ if git clone --depth 1 --branch "$VERSION" https://github.com/Homebrew/brew.git 
         (cd "$TMPDIR_PATCH/brew-source" && patch -p1 --forward < "$PATCH_FILE" > "$TMPDIR_PATCH/apply.out" 2>&1) || true
 
         # Diff against originals to confirm real changes occurred
-        for ruby_file in bottle_specification.rb formula_installer.rb keg_relocate.rb; do
-            target="$TMPDIR_PATCH/brew-source/Library/Homebrew/$ruby_file"
+        for target_file in \
+            Library/Homebrew/bottle_specification.rb \
+            Library/Homebrew/formula_installer.rb \
+            Library/Homebrew/keg_relocate.rb \
+            bin/brew; do
+            target="$TMPDIR_PATCH/brew-source/$target_file"
             if [ -f "${target}.orig" ] && [ -f "$target" ]; then
                 if ! diff -q "${target}.orig" "$target" > /dev/null 2>&1; then
-                    echo "   PASS $ruby_file was modified by patch"
+                    echo "   PASS $target_file was modified by patch"
                     PASS=$((PASS + 1))
                 else
-                    echo "   FAIL $ruby_file unchanged after patch"
+                    echo "   FAIL $target_file unchanged after patch"
                     FAIL=$((FAIL + 1))
                 fi
             fi
@@ -115,6 +125,7 @@ if git clone --depth 1 --branch "$VERSION" https://github.com/Homebrew/brew.git 
 
         # Cleanup orig files
         rm -f "$TMPDIR_PATCH/brew-source/Library/Homebrew/"*.orig
+        rm -f "$TMPDIR_PATCH/brew-source/bin/"*.orig
     fi
 else
     echo "   WARN brew clone failed (network), skipping dry-run"

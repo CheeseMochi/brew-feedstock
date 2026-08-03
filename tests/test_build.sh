@@ -8,6 +8,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RECIPE_DIR="$PROJECT_DIR/recipe"
 
+# CEP-16 sharded repodata is still buggy as of 2026 -- shard fetches can 404
+# and conda-build's internal solver calls don't reliably pick up a
+# `conda config --set plugins.use_sharded_repodata false` change the way a
+# plain `conda install` does.
+export CONDA_PLUGINS_USE_SHARDED_REPODATA=0
+
 PASS=0
 FAIL=0
 
@@ -33,6 +39,23 @@ check_exists() {
     fi
 }
 
+# Confirm conda-brew-path-rewrite.patch actually landed in the *built
+# artifact* -- conda-build applies patches inside its own isolated build
+# sandbox, which is not guaranteed to have the same `patch` on PATH as this
+# test's shell, so a passing patch dry-run (test_patch.sh) does not prove the
+# real build picked it up. This caught a real bug where the sandbox fell back
+# to macOS's ancient BSD patch, which silently skipped every hunk.
+check_file_contains() {
+    local desc="$1" file="$2" needle="$3"
+    if [ -f "$file" ] && grep -qF -- "$needle" "$file"; then
+        echo "   PASS $desc"
+        PASS=$((PASS + 1))
+    else
+        echo "   FAIL $desc (missing '$needle' in $file -- patch did not apply in the built artifact)"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 echo ""
 echo "=== Build validation ==="
 
@@ -54,14 +77,15 @@ package_path=""
 
 # Try standard conda-bld output locations first
 CONDABREW_ENV_PREFIX="${CONDA_PREFIX:-}"
-for candidate in \
-     "$CONDABREW_ENV_PREFIX"/conda-bld/osx-arm64/brew-*.conda \
-     "$CONDABREW_ENV_PREFIX"/conda-bld/osx-arm64/brew-*.tar.bz2; do
-    if ls "$candidate" 1>/dev/null 2>&1; then
-        package_path="$candidate"
-        break
-    fi
-done
+# Multiple build numbers can accumulate in conda-bld/ across rebuilds (e.g.
+# brew-5.1.11-0.conda and brew-5.1.11-1.conda side by side) -- an unquoted
+# glob here would expand to multiple words and silently pick whichever sorts
+# first alphabetically (the stale, lowest build number), not the one just
+# built. `ls -t | head -1` picks the most recently modified instead.
+package_path=$(ls -t "$CONDABREW_ENV_PREFIX"/conda-bld/osx-arm64/brew-*.conda 2>/dev/null | head -1)
+if [ -z "$package_path" ]; then
+    package_path=$(ls -t "$CONDABREW_ENV_PREFIX"/conda-bld/osx-arm64/brew-*.tar.bz2 2>/dev/null | head -1)
+fi
 
 # Fallback: search recursively for any brew artifact. A permission error on
 # some unrelated build/test sandbox dir elsewhere under conda-bld must not
@@ -129,6 +153,30 @@ check_exists "$homebrew_dir/bin/brew exists" "$homebrew_dir/bin/brew"
 check_exists "$homebrew_dir/etc/homebrew/brew.env exists" "$homebrew_dir/etc/homebrew/brew.env"
 check "Library/Homebrew/ contains ruby files" \
     "$(ls "$homebrew_dir/Library/Homebrew/"*.rb 1>/dev/null 2>&1 && echo y || echo n)" "y"
+
+# conda's activate/deactivate hooks live at the package root (etc/conda/...),
+# not under homebrew/ -- these were silently never being packaged at all
+# (build.sh never copied them from the recipe), so HOMEBREW_NO_AUTO_UPDATE
+# was never actually set on `conda activate`, and `brew install` would run
+# an implicit `brew update` that re-clones Homebrew's repo and undoes every
+# patch, every time.
+check_exists "etc/conda/activate.d/brew-activate.sh exists" \
+    "$EXTRACT_DIR/etc/conda/activate.d/brew-activate.sh"
+check_exists "etc/conda/deactivate.d/brew-deactivate.sh exists" \
+    "$EXTRACT_DIR/etc/conda/deactivate.d/brew-deactivate.sh"
+check_file_contains "brew.env sets HOMEBREW_NO_AUTO_UPDATE" \
+    "$homebrew_dir/etc/homebrew/brew.env" "HOMEBREW_NO_AUTO_UPDATE=1"
+
+echo ""
+echo "--- Patch landed in built artifact ---"
+check_file_contains "bottle_specification.rb: cellar == :any relaxation" \
+    "$homebrew_dir/Library/Homebrew/bottle_specification.rb" "cellar == :any"
+check_file_contains "formula_installer.rb: skip_linkage forced false" \
+    "$homebrew_dir/Library/Homebrew/formula_installer.rb" "Always run relocation"
+check_file_contains "keg_relocate.rb: /opt/homebrew replacement pair" \
+    "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "default_macos_arm"
+check_file_contains "bin/brew: HOMEBREW_PREFIX aligned with resolved repository" \
+    "$homebrew_dir/bin/brew" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
 
 # Verify no portable Ruby binaries are bundled (Ruby 4.0.x comes from conda)
 vendor_count=$(find "$homebrew_dir/Library/Homebrew/vendor" -maxdepth 1 -type d \

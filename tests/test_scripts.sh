@@ -90,6 +90,29 @@ check           "HOMEBREW_NO_ANALYTICS=1" "$_ACT_HOMEBREW_NO_ANALYTICS" "1"
 activate_script="$(cat "$RECIPE_DIR/etc/conda/activate.d/brew-activate.sh")"
 check_contains  "zsh completion sourced" "$activate_script" 'ZSH_VERSION'
 check_contains  "fish completion added" "$activate_script" 'FISH_VERSION'
+
+# Regression test: conda-build's own package test harness activates a test
+# env from *inside* an already-active build env, so $CONDA_PREFIX/bin is not
+# necessarily the literal first PATH entry -- only somewhere in it. A prior
+# version of this script only checked the literal prefix, silently leaving
+# homebrew/bin off PATH (and `brew doctor`/`hello` failing) whenever anything
+# preceded $CONDA_PREFIX/bin.
+_eval_activate_nested_path() {
+    export CONDA_PREFIX="$FAKE_PREFIX"
+    # Simulate PATH where $CONDA_PREFIX/bin is present but NOT the first entry
+    export PATH="/some/other/tool/bin:${CONDA_PREFIX}/bin:/usr/bin:/bin"
+
+    eval "$(cat "$RECIPE_DIR/etc/conda/activate.d/brew-activate.sh")"
+
+    _ACT_NESTED_PATH="$PATH"
+}
+
+_eval_activate_nested_path
+
+check_contains "PATH contains homebrew bin when \$CONDA_PREFIX/bin isn't first" \
+    "$_ACT_NESTED_PATH" "$FAKE_PREFIX/homebrew/bin:"
+check_contains "PATH still has the entry before \$CONDA_PREFIX/bin" \
+    "$_ACT_NESTED_PATH" "/some/other/tool/bin:"
 check_contains  "bash completion sourced" "$activate_script" 'BASH_VERSION'
 
 # ============================================================

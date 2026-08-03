@@ -11,6 +11,12 @@ jobs:
     defaults:
       run:
         shell: bash -l {0}
+    env:
+      # CEP-16 sharded repodata is still buggy as of 2026 -- shard fetches can
+      # 404 and conda-build's internal solver calls don't reliably pick up a
+      # `conda config --set plugins.use_sharded_repodata false` change the way
+      # a plain `conda install` does. This env var disables it directly.
+      CONDA_PLUGINS_USE_SHARDED_REPODATA: "0"
     steps:
       - uses: actions/checkout@v4
 
