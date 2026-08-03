@@ -3,14 +3,15 @@
 ### Build & test
 
 ```bash
-conda-build -c conda-forge recipe/                            # build conda package
-conda run -n condabrew conda-build -c conda-forge recipe/     # same, but via conda env (tests use this)
+conda env create -f environment.yml             # first time: creates the condabrew env
+conda activate condabrew                        # activate the project's test/build env first
+conda-build -c conda-forge recipe/               # build conda package
 bash tests/run.sh quick                         # default: scripts + patch + build (fast)
 bash tests/run.sh e2e                           # full pipeline: build → install → brew run → deactivate
 bash tests/run.sh all                           # everything including e2e
 ```
 
-Tests run via `conda run -n condabrew` — the `condabrew` conda env is the project's runtime.
+Tests assume `condabrew` is already the active conda env (activate it before running `tests/run.sh`) — they call `conda-build`/`python3` directly rather than wrapping each command in `conda run -n condabrew`, which double-resolves the env path when already inside it.
 
 ### Updating recipe version
 

@@ -42,8 +42,7 @@ trap 'rm -rf "$BUILD_DIR"' EXIT
 
 echo "Running: conda-build recipe/ "
 
-conda run -n condabrew \
-    conda-build -c conda-forge "$RECIPE_DIR" \
+conda-build -c conda-forge "$RECIPE_DIR" \
     > "$BUILD_DIR/build.log" 2>&1 || {
     echo "   FAIL conda-build failed:"
     cat "$BUILD_DIR/build.log"
@@ -54,7 +53,7 @@ conda run -n condabrew \
 package_path=""
 
 # Try standard conda-bld output locations first
-CONDABREW_ENV_PREFIX="$(conda run -n condabrew printenv CONDA_PREFIX 2>/dev/null)" || true
+CONDABREW_ENV_PREFIX="${CONDA_PREFIX:-}"
 for candidate in \
      "$CONDABREW_ENV_PREFIX"/conda-bld/osx-arm64/brew-*.conda \
      "$CONDABREW_ENV_PREFIX"/conda-bld/osx-arm64/brew-*.tar.bz2; do
@@ -143,7 +142,7 @@ fi
 # Validate meta.yaml structure with Python
 echo ""
 echo "--- YAML validation ---"
-if conda run -n condabrew python3 -c "
+if python3 -c "
 import yaml, sys
 with open('$RECIPE_DIR/meta.yaml') as f:
     meta = yaml.safe_load(f)

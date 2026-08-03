@@ -39,8 +39,7 @@ echo "=== End-to-end pipeline ==="
 echo ""
 echo "--- Step 1: Building conda package ---"
 
-conda run -n condabrew \
-    conda-build -c conda-forge "$RECIPE_DIR" \
+conda-build -c conda-forge "$RECIPE_DIR" \
     > "$LOG_DIR/condabuild-e2e.log" 2>&1 || {
     echo "   FAIL conda-build failed:"
     cat "$LOG_DIR/condabuild-e2e.log"
@@ -52,7 +51,7 @@ echo "   PASS conda package built"
 echo ""
 echo "--- Step 2: Creating test environment ---"
 
-CONDABREW_ENV_PREFIX="$(conda run -n condabrew printenv CONDA_PREFIX 2>/dev/null)" || true
+CONDABREW_ENV_PREFIX="${CONDA_PREFIX:-}"
 package_path=""
 
 # Try the standard conda-bld output location first (fast, and avoids `find`
@@ -78,8 +77,7 @@ if [ -z "$package_path" ]; then
     exit 1
 fi
 
-conda run -n condabrew \
-    conda create -y -p "$TEST_ENV" \
+conda create -y -p "$TEST_ENV" \
     -c local \
     "$package_path" \
     > "$LOG_DIR/conda-create-e2e.log" 2>&1 || {

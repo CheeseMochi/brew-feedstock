@@ -24,17 +24,25 @@ bash tests/run.sh e2e       # full pipeline: build → install → brew test
 ## Prerequisites
 
 - macOS (with brew source cloneable)
-- The `condabrew` conda environment with `conda-build` installed:
+- The `condabrew` conda environment with `conda-build` installed. Create it from the repo's `environment.yml`:
   ```bash
+  conda env create -f environment.yml
+  conda activate condabrew
+  ```
+  Or manually:
+  ```bash
+  conda create -n condabrew python
   conda activate condabrew
   conda install -c conda-forge conda-build pyyaml
   ```
 
 ## Running
 
-All scripts run via `conda run -n condabrew <script>` to use the project's conda environment. The orchestrator (`run.sh`) handles this automatically.
+Activate the `condabrew` env first — the scripts call `conda-build`/`python3` directly and assume they're already on `PATH`, rather than wrapping each command in `conda run -n condabrew` (which double-resolves the env path when invoked from inside an already-active `condabrew`).
 
 ```bash
+conda activate condabrew
+
 # All tests (fast + slow)
 bash tests/run.sh
 
