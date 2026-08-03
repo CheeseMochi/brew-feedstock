@@ -1,0 +1,6 @@
+*.DS_Store
+
+# Local AI coding tool configs, not part of the package
+.claude/**
+.mcp.json
+opencode.json

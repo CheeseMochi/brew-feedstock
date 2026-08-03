@@ -1,0 +1,65 @@
+diff --git a/Library/Homebrew/bottle_specification.rb b/Library/Homebrew/bottle_specification.rb
+index 52894ed..db10e82 100644
+--- a/Library/Homebrew/bottle_specification.rb
++++ b/Library/Homebrew/bottle_specification.rb
+@@ -77,14 +77,16 @@ class BottleSpecification
+     cellar = tag_to_cellar(tag)
+ 
+     return true if RELOCATABLE_CELLARS.include?(cellar)
++    # For bottles with no specific cellar (cellar: :any), any location works
++    return true if cellar == :any
++    # For bottles targeting the default prefix, allow any cellar that fits
++    return true if cellar.is_a?(String) && cellar.size >= HOMEBREW_CELLAR.to_s.size
+ 
+     prefix = Pathname(cellar.to_s).parent.to_s
+ 
+-    cellar_relocatable = cellar.size >= HOMEBREW_CELLAR.to_s.size && ENV["HOMEBREW_RELOCATE_BUILD_PREFIX"].present?
+-    prefix_relocatable = prefix.size >= HOMEBREW_PREFIX.to_s.size && ENV["HOMEBREW_RELOCATE_BUILD_PREFIX"].present?
++    compatible_cellar = cellar.size >= HOMEBREW_CELLAR.to_s.size
+ 
+-    compatible_cellar = cellar == HOMEBREW_CELLAR.to_s || cellar_relocatable
+-    compatible_prefix = prefix == HOMEBREW_PREFIX.to_s || prefix_relocatable
++    compatible_prefix = prefix.size >= HOMEBREW_PREFIX.to_s.size
+ 
+     compatible_cellar && compatible_prefix
+   end
+diff --git a/Library/Homebrew/formula_installer.rb b/Library/Homebrew/formula_installer.rb
+index 91bbd35..bff4bba 100644
+--- a/Library/Homebrew/formula_installer.rb
++++ b/Library/Homebrew/formula_installer.rb
+@@ -1534,17 +1534,14 @@ on_request: installed_on_request?, options:)
+     tab.write
+ 
+     keg = Keg.new(formula.prefix)
+-    skip_linkage = formula.bottle_specification.skip_relocation?
++    # Always run relocation - placeholders in bottles handle path rewriting
++    skip_linkage = false
+     keg.replace_placeholders_with_locations(tab.changed_files, skip_linkage:)
+ 
+     cellar = formula.bottle_specification.tag_to_cellar(Utils::Bottles.tag)
+     return if [:any, :any_skip_relocation].include?(cellar)
+ 
+     prefix = Pathname(cellar).parent.to_s
+-    return if cellar == HOMEBREW_CELLAR.to_s && prefix == HOMEBREW_PREFIX.to_s
+-
+-    return unless ENV["HOMEBREW_RELOCATE_BUILD_PREFIX"]
+-
+     keg.relocate_build_prefix(keg, prefix, HOMEBREW_PREFIX)
+   end
+ 
+diff --git a/Library/Homebrew/keg_relocate.rb b/Library/Homebrew/keg_relocate.rb
+index 09ec44a..32924a4 100644
+--- a/Library/Homebrew/keg_relocate.rb
++++ b/Library/Homebrew/keg_relocate.rb
+@@ -181,7 +181,11 @@ class Keg
+     relocation = Relocation.new
+     relocation.add_replacement_pair(:prefix, PREFIX_PLACEHOLDER, HOMEBREW_PREFIX.to_s)
+     relocation.add_replacement_pair(:cellar, CELLAR_PLACEHOLDER, HOMEBREW_CELLAR.to_s)
+     relocation.add_replacement_pair(:repository, REPOSITORY_PLACEHOLDER, HOMEBREW_REPOSITORY.to_s)
++    # Bottles built for the stock macOS prefixes hardcode absolute paths (not
++    # placeholder tokens), so rewrite those literally to the conda-scoped prefix.
++    relocation.add_replacement_pair(:default_macos_arm, "/opt/homebrew", HOMEBREW_PREFIX.to_s)
++    relocation.add_replacement_pair(:default_macos_intel, "/usr/local", HOMEBREW_PREFIX.to_s)
+     relocation.add_replacement_pair(:library, LIBRARY_PLACEHOLDER, HOMEBREW_LIBRARY.to_s)
+     relocation.add_replacement_pair(:perl, PERL_PLACEHOLDER, "#{HOMEBREW_PREFIX}/opt/perl/bin/perl")
+     if (openjdk = openjdk_dep_name_if_applicable)

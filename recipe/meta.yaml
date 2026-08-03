@@ -1,0 +1,68 @@
+# Every bottle install rewrites /opt/homebrew → $CONDA_PREFIX/homebrew at install time
+
+package:
+  name: brew
+  version: "5.1.11"
+
+source:
+  - url: https://github.com/Homebrew/brew/archive/refs/tags/5.1.11.tar.gz
+    sha256: a0db79149cd9a8704d472b1928b12e9e31cb5960e06db570531defd064033601
+  # NOTE: no CI currently computes this automatically -- update it manually
+  # when bumping the version, e.g. `curl -sL <url> | shasum -a 256`
+
+requirements:
+  build:
+    - git
+    - bash
+  run:
+    - bash >=4.0
+    - git >=2.14.3
+    - python >=3.9
+    - ruby >=4.0,<4.1
+    - openssl >=3.0
+    - libcurl >=8.0
+    - libssh2
+    - cmake
+    - libarchive
+    - xz
+
+build:
+  number: 0
+  skip: true  # [not osx]
+
+test:
+  commands:
+    - brew --version
+    - brew --prefix
+    - brew --repository
+    - brew --cellar
+    - brew doctor || true  # a conda-scoped install legitimately triggers some checks
+    - brew install hello
+    - hello
+    # brew info's human-readable "Poured from bottle on ..." line was dropped
+    # upstream; poured_from_bottle now only shows up in the JSON API.
+    - brew info --json=v2 hello | grep -E '"poured_from_bottle"[[:space:]]*:[[:space:]]*true'
+
+about:
+  homepage: https://brew.sh/
+  license: BSD-2-Clause
+  # Resolved relative to $SRC_DIR (conda-build falls back there when the path
+  # isn't found in the recipe dir); matches the brew-5.1.11/ layout that GitHub's
+  # tag-archive tarball extracts to. Update the version prefix alongside
+  # build.sh's HOMEBREW_SRC when bumping the brew version.
+  license_file: brew-5.1.11/LICENSE.txt
+  summary: Homebrew installed inside a conda environment, scoped per-environment
+  description: >-
+    Homebrew inside a conda environment. A `brew` CLI whose artifacts live only within the active conda env, scoped per-environment, isolated from the system.
+
+    Why?
+
+    macOS has no native package manager other than the App Store. Homebrew filled that gap, but it has three drawbacks for development workflows:
+
+    - **System-wide installs** — everything goes under `/opt/homebrew`, shared across users and environments.
+    - **No virtual env support** — you can only have one version of each dependency, available everywhere.
+    - **Hard to clean up** — uninstalling brew leaves remnants scattered across the filesystem.
+
+    This package solves this by shipping a fully functional `brew` CLI inside a conda package. When you `conda activate` an environment, `brew` works normally but installs only into that environment's prefix. Deactivate and it disappears.
+  doc_url: https://docs.brew.sh/
+  dev_url: https://github.com/Homebrew/brew/
