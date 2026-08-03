@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: condabrew
+          python-version: "3.11"
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install build dependencies
+        run: conda install -n condabrew -c conda-forge conda-build pyyaml -y
+
+      - name: Run test suite
+        run: bash tests/run.sh quick
