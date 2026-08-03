@@ -13,6 +13,8 @@ Documentation: https://brew.sh/
 
 **Homebrew inside a conda environment.** A `brew` CLI whose artifacts live only within the active conda env, scoped per-environment, isolated from the system.
 
+This work is not associated with, the responsibility of, or the work of Homebrew and its maintainers. This is an independent work aimed at bringing the magic of Homebrew to a conda environment. Please forward all bugs and issues in this implementation to the feedstock maintaners.
+
 ## Why
 
 macOS has no native package manager other than the App Store. Homebrew filled that gap, but it has three drawbacks for development workflows:
@@ -50,14 +52,14 @@ Only the `brew` CLI itself is symlinked into `$CONDA_PREFIX/bin` (to avoid shado
 ### From anaconda.org
 
 ```bash
-conda config --add channels <brew_channel>
+conda config --add channels <brew_conda_channel>
 conda config --set channel_priority strict
 conda create -n brew-env brew
 conda activate brew-env
 brew --version
 ```
 
-(No package has been published yet — `<brew_channel>` is a placeholder until a release channel exists. See "CI / Releases" below.)
+(No package has been published yet — `<brew_conda_channel>` is a placeholder until a release channel exists. See "CI / Releases" below.)
 
 ### Build from source
 
