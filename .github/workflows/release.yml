@@ -1,0 +1,82 @@
+name: release
+
+# Fires on a deliberate `git tag vX.Y.Z && git push origin vX.Y.Z` after a
+# version-bump PR is merged (see RELEASING.md) -- not on every merge to main,
+# so publishing stays a separate, explicit step from landing the bump.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    env:
+      CONDA_PLUGINS_USE_SHARDED_REPODATA: "0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify tag matches recipe version
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          meta_version=$(grep -m1 '{% set version' recipe/meta.yaml | sed -E 's/.*"([^"]+)".*/\1/')
+          build_sh_version=$(grep -m1 'BREW_VERSION=' recipe/build.sh | sed -E 's/.*"([^"]+)".*/\1/')
+
+          if [ "$tag_version" != "$meta_version" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match recipe/meta.yaml version ${meta_version}" >&2
+            exit 1
+          fi
+          if [ "$tag_version" != "$build_sh_version" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match recipe/build.sh BREW_VERSION ${build_sh_version}" >&2
+            exit 1
+          fi
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: condabrew
+          python-version: "3.11"
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install build dependencies
+        run: conda install -n condabrew -c conda-forge conda-build anaconda-client pyyaml -y
+
+      - name: Run full test suite
+        run: bash tests/run.sh all
+
+      - name: Locate built package
+        id: pkg
+        run: |
+          set -euo pipefail
+          # Same lookup tests/test_build.sh and tests/test_e2e.sh use -- `all`
+          # above already built it via those, this just finds what they left.
+          # osx-arm64 only: macos-latest is an arm64 runner, and skip: true
+          # [not osx] means this recipe never targets Intel/other platforms.
+          path=$(ls -t "$CONDA_PREFIX"/conda-bld/osx-arm64/brew-*.conda 2>/dev/null | head -1)
+          if [ -z "$path" ]; then
+            echo "::error::no built .conda artifact found under $CONDA_PREFIX/conda-bld/osx-arm64" >&2
+            exit 1
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to anaconda.org
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: anaconda -t "$ANACONDA_API_TOKEN" upload -u cheesemochi "${{ steps.pkg.outputs.path }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "brew $version" \
+            --notes "Packaged Homebrew $version for conda environments. Upstream release notes: https://github.com/Homebrew/brew/releases/tag/$version"

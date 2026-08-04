@@ -1,14 +1,14 @@
 # Every bottle install rewrites /opt/homebrew → $CONDA_PREFIX/homebrew at install time
+{% set version = "5.1.11" %}
 
 package:
   name: brew
-  version: "5.1.11"
+  version: "{{ version }}"
 
 source:
-  - url: https://github.com/Homebrew/brew/archive/refs/tags/5.1.11.tar.gz
+  - url: https://github.com/Homebrew/brew/archive/refs/tags/{{ version }}.tar.gz
     sha256: a0db79149cd9a8704d472b1928b12e9e31cb5960e06db570531defd064033601
-  # NOTE: no CI currently computes this automatically -- update it manually
-  # when bumping the version, e.g. `curl -sL <url> | shasum -a 256`
+  # .github/scripts/bump_brew_version.py computes and updates this; see RELEASING.md.
 
 requirements:
   build:
@@ -44,10 +44,9 @@ about:
   homepage: https://brew.sh/
   license: BSD-2-Clause
   # Resolved relative to $SRC_DIR (conda-build falls back there when the path
-  # isn't found in the recipe dir); matches the brew-5.1.11/ layout that GitHub's
-  # tag-archive tarball extracts to. Update the version prefix alongside
-  # build.sh's HOMEBREW_SRC when bumping the brew version.
-  license_file: brew-5.1.11/LICENSE.txt
+  # isn't found in the recipe dir); matches the brew-<version>/ layout that
+  # GitHub's tag-archive tarball extracts to.
+  license_file: brew-{{ version }}/LICENSE.txt
   summary: Homebrew installed inside a conda environment, scoped per-environment
   description: >-
     Homebrew inside a conda environment. A `brew` CLI whose artifacts live only within the active conda env, scoped per-environment, isolated from the system.

@@ -7,8 +7,8 @@ HOMEBREW_SRC="$SRC_DIR/brew-${BREW_VERSION}"
 
 # Clone Homebrew if the tarball wasn't unpacked by conda-build. Pinned to the
 # same tag as source.url/source.sha256 in meta.yaml — an unpinned clone would
-# silently build against current master, which has diverged enough from
-# 5.1.11 that the patch's hunks no longer apply cleanly against it.
+# silently build against current master, which drifts from any pinned release
+# fast enough that the patch's hunks stop applying cleanly against it.
 if [ ! -d "$HOMEBREW_SRC" ]; then
   git clone --depth 1 --branch "$BREW_VERSION" https://github.com/Homebrew/brew.git "$HOMEBREW_SRC"
 fi

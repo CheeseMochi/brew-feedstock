@@ -1,0 +1,38 @@
+name: e2e
+
+# Only recipe changes can break the actual install/relocation behavior that
+# `quick` (tests/run.sh quick, run by test.yml) doesn't cover -- gating this
+# on recipe/** keeps routine doc/CI-only PRs from paying for a full macOS e2e
+# run. Version-bump PRs always touch recipe/, so they always get this.
+on:
+  pull_request:
+    paths:
+      - "recipe/**"
+  workflow_dispatch: {}
+  # workflow_dispatch lets version-check.yml explicitly kick this off for a
+  # bot-pushed branch -- see the same note in test.yml.
+
+jobs:
+  e2e:
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    env:
+      CONDA_PLUGINS_USE_SHARDED_REPODATA: "0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: condabrew
+          python-version: "3.11"
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install build dependencies
+        run: conda install -n condabrew -c conda-forge conda-build pyyaml -y
+
+      - name: Run e2e suite
+        run: bash tests/run.sh e2e

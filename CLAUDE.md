@@ -24,9 +24,10 @@ bash tests/run.sh e2e                 # full pipeline: build → install → bre
 ## CI
 
 `.github/workflows/test.yml` runs on push/PR to `main` (macOS runner, sets up the `condabrew` env, runs
-`tests/run.sh quick`). Note: `AGENTS.md` and `README.md` both currently say "no CI is wired up" — that's
-stale; the workflow exists. Don't propagate that claim, and consider updating those docs if you're touching
-CI-adjacent files.
+`tests/run.sh quick`); `e2e.yml` adds the slow e2e suite on PRs touching `recipe/**`. Version bumps and
+releases are also automated — see `RELEASING.md` for the full strategy (`version-check.yml` opens
+version-bump PRs daily, `release.yml` publishes on a `vX.Y.Z` tag push). Neither auto-merges nor
+auto-tags; a human always reviews before a version bump lands or a release ships.
 
 ## Working on this repo — things that bite
 

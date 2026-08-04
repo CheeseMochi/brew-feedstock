@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: {}
+  # workflow_dispatch lets version-check.yml explicitly kick this off for a
+  # bot-pushed branch -- GITHUB_TOKEN-authored pushes/PRs don't trigger the
+  # `push`/`pull_request` events above (a GitHub Actions restriction to
+  # prevent workflow recursion), so without this a bot-opened version-bump PR
+  # would show zero checks.
 
 jobs:
   test:

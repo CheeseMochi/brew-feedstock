@@ -1,0 +1,81 @@
+name: check brew version
+
+# Homebrew/brew cuts releases every few days, sometimes more than once a
+# week, so a daily check is not overkill here (see RELEASING.md).
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check for a newer brew release
+        id: bump
+        run: python3 .github/scripts/bump_brew_version.py
+
+      - name: Open or update version-bump PR
+        if: steps.bump.outputs.bumped == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+          OLD_VERSION: ${{ steps.bump.outputs.old_version }}
+        run: |
+          set -euo pipefail
+          branch="bot/bump-brew"
+          bot_email="github-actions[bot]@users.noreply.github.com"
+
+          # Don't clobber in-progress human work (e.g. a maintainer mid-way
+          # through reworking the patch for this release) that happens to
+          # live on this same fixed branch name -- only the bot's own prior
+          # bump commit is safe to overwrite.
+          git fetch origin "$branch" 2>/dev/null || true
+          if git rev-parse --verify -q "origin/$branch" >/dev/null; then
+            last_author=$(git log -1 --format='%ae' "origin/$branch")
+            if [ "$last_author" != "$bot_email" ]; then
+              echo "origin/$branch has non-bot commits -- leaving it untouched"
+              if gh pr view "$branch" >/dev/null 2>&1; then
+                gh pr comment "$branch" --body "brew ${NEW_VERSION} is now available, but \`$branch\` has commits this bot didn't make, so it was left alone. Rebase onto the bump manually, or delete the branch to let automation retake it next run." || true
+              fi
+              exit 0
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "$bot_email"
+          git checkout -B "$branch"
+          git add recipe/meta.yaml recipe/build.sh
+          git commit -m "Bump brew ${OLD_VERSION} -> ${NEW_VERSION}"
+          git push --force origin "$branch"
+
+          body="Automated version bump: ${OLD_VERSION} -> ${NEW_VERSION}
+
+          Upstream release notes: https://github.com/Homebrew/brew/releases/tag/${NEW_VERSION}
+
+          Before merging:
+          - [ ] \`quick\` and \`e2e\` checks on this PR are green
+          - [ ] \`recipe/conda-brew-path-rewrite.patch\` still applies *and* still does the right thing -- a clean apply is necessary, not sufficient. Read the e2e job's relocation-check output, don't just trust its exit code.
+          - [ ] If the patch needed rework for this release, that rework is included in this PR (or merged first and this PR rebased)
+
+          Do not auto-merge on green CI alone. See RELEASING.md."
+
+          if gh pr view "$branch" >/dev/null 2>&1; then
+            gh pr edit "$branch" --title "Bump brew to ${NEW_VERSION}" --body "$body"
+          else
+            gh pr create --title "Bump brew to ${NEW_VERSION}" --body "$body" --head "$branch"
+          fi
+
+          # GITHUB_TOKEN-authored pushes/PRs don't trigger the push/pull_request
+          # events on test.yml/e2e.yml (GitHub Actions blocks that recursion),
+          # so without this the PR above would show zero checks. workflow_dispatch
+          # is the one event GITHUB_TOKEN is allowed to chain into.
+          gh workflow run test.yml --ref "$branch"
+          gh workflow run e2e.yml --ref "$branch"

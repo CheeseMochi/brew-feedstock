@@ -52,14 +52,16 @@ Only the `brew` CLI itself is symlinked into `$CONDA_PREFIX/bin` (to avoid shado
 ### From anaconda.org
 
 ```bash
-conda config --add channels <brew_conda_channel>
+conda config --add channels cheesemochi
 conda config --set channel_priority strict
 conda create -n brew-env brew
 conda activate brew-env
 brew --version
 ```
 
-(No package has been published yet — `<brew_conda_channel>` is a placeholder until a release channel exists. See "CI / Releases" below.)
+(No package has been published yet as of this writing — the channel above is where
+releases will land once `RELEASING.md`'s tag-triggered publish workflow has run at least
+once.)
 
 ### Build from source
 
@@ -96,16 +98,25 @@ which brew              # "not found"
 
 ## Updating the recipe version
 
-1. Update `recipe/meta.yaml`: `package.version`, `source.url` + `source.sha256`, and the
-   `brew-<version>/LICENSE.txt` version prefix in `about.license_file`
-2. Update `recipe/build.sh`: change the `BREW_VERSION="..."` line to match
-3. Increment `build.number` (reset to `0` when the version increases)
+A daily automated check opens a PR when a new `brew` release is available; a maintainer
+reviews and merges it (not auto-merged — see why in `RELEASING.md`). To bump manually:
 
-See `AGENTS.md` for the full details, plus what each file in `recipe/` does.
+```bash
+python3 .github/scripts/bump_brew_version.py --version X.Y.Z
+```
+
+See `RELEASING.md` for the full versioning/release strategy, and `AGENTS.md` for what
+each file in `recipe/` does.
 
 ## CI / Releases
 
-No CI is currently wired up (the previous workflow was stale and has been removed). Building and publishing a new version is a manual `conda-build` + upload for now.
+- Every push/PR runs the test suite (`.github/workflows/test.yml`, `e2e.yml`).
+- A daily check (`.github/workflows/version-check.yml`) opens a version-bump PR when
+  Homebrew publishes a new release.
+- Pushing a `vX.Y.Z` tag (after merging a version bump) builds, tests, and publishes to
+  the `cheesemochi` anaconda.org channel (`.github/workflows/release.yml`).
+
+Full details, including why version bumps aren't auto-merged, in `RELEASING.md`.
 
 ## Limitations
 

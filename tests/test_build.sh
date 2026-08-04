@@ -191,9 +191,17 @@ fi
 echo ""
 echo "--- YAML validation ---"
 if python3 -c "
-import yaml, sys
+import re, yaml, sys
 with open('$RECIPE_DIR/meta.yaml') as f:
-    meta = yaml.safe_load(f)
+    raw = f.read()
+# meta.yaml is Jinja-templated (conda-build renders it before use) -- strip
+# {% set %} lines and substitute {{ version }} so plain yaml.safe_load works
+# here too, rather than pulling in conda-build's renderer for this check.
+m = re.search(r'{% set version = \"([^\"]+)\" %}', raw)
+version = m.group(1) if m else ''
+raw = re.sub(r'{%.*?%}\n?', '', raw)
+raw = raw.replace('{{ version }}', version)
+meta = yaml.safe_load(raw)
 assert meta['package']['name'] == 'brew', 'Wrong package name'
 assert 'version' in meta['package'], 'Missing version'
 assert 'source' in meta, 'Missing source'

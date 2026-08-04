@@ -15,13 +15,16 @@ Tests assume `condabrew` is already the active conda env (activate it before run
 
 ### Updating recipe version
 
-1. Update `recipe/meta.yaml`: `package.version`, `source.url` + `source.sha256`, and the
-   `brew-5.1.11/LICENSE.txt` version prefix in `about.license_file`
-2. Update `recipe/build.sh`: change the `BREW_VERSION="5.1.11"` line to match (also pins the
-   git-clone fallback's `--branch`, so it can't silently build against current master)
-3. Increment `build.number` (reset to `0` when version increases)
-4. There is no CI right now (see Constraints) — compute `source.sha256` manually,
-   e.g. `curl -sL <source.url> | shasum -a 256`
+See `RELEASING.md` for the full strategy (automation, release cutting, reproducibility).
+Short version: `recipe/meta.yaml`'s version is Jinja-templated (`{% set version = "X.Y.Z" %}`),
+so `source.url` and `about.license_file` derive from it automatically — only `version`,
+`source.sha256`, and `build.number` (reset to `0`) need touching in that file, plus
+`build.sh`'s separate `BREW_VERSION` line (build.sh isn't Jinja-rendered by conda-build,
+so it can't reference `{{ version }}`). `.github/scripts/bump_brew_version.py --version X.Y.Z`
+does all of that in one shot, including computing `source.sha256`. A daily scheduled
+workflow (`version-check.yml`) also runs this automatically and opens a PR — it does not
+auto-merge, since the path-rewrite patch below needs human verification that it still
+does the right thing, not just that it still applies.
 
 ### Patch (the core logic)
 
@@ -53,16 +56,24 @@ tests/
   test_build.sh                # runs conda-build, extracts and validates the .conda artifact
   test_e2e.sh                  # build → install in temp env → brew install hello + sqlite →
                                 # verify bottle used and relocation actually rewrote paths → deactivate
+.github/
+  scripts/bump_brew_version.py # bumps meta.yaml + build.sh to a given/latest brew version
+  workflows/
+    test.yml                   # tests/run.sh quick on push to main + every PR
+    e2e.yml                    # tests/run.sh e2e on PRs touching recipe/**
+    version-check.yml          # daily: opens/updates a version-bump PR (see RELEASING.md)
+    release.yml                # on `vX.Y.Z` tag push: build, test, publish to anaconda.org
 ```
+
+See `RELEASING.md` for what each release-related workflow actually does and why.
 
 ### Constraints
 
-- macOS only (`skip: true  # [not osx]` in recipe)
+- macOS only (`skip: true  # [not osx]` in recipe), and only `osx-arm64` is actually built
+  and published (see RELEASING.md's Known limitations — Intel isn't wired up)
 - Ruby comes from conda (`ruby >=4.0,<4.1`), not bundled
 - `brew update` is dangerous — it replaces the patched binary; reinstall the conda package instead
 - Package name is `brew` (in meta.yaml), not `condabrew` — conflicting with system brew if both installed
-- No CI is wired up currently (previous `.github/workflows/build.yml` was stale and was removed);
-  builds/publishes are manual for now
 - Collisions between conda-installed and brew-installed packages of the same name are not handled
   beyond the narrow mitigations already in place (only the `brew` CLI itself is symlinked into
   `$PREFIX/bin`; the activate/deactivate hooks use package-specific filenames). A broader
