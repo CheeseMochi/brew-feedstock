@@ -53,11 +53,10 @@ index 91bbd35..bff4bba 100644
    end
  
 diff --git a/Library/Homebrew/keg_relocate.rb b/Library/Homebrew/keg_relocate.rb
-index 09ec44a..32924a4 100644
+index 09ec44a..e738052 100644
 --- a/Library/Homebrew/keg_relocate.rb
 +++ b/Library/Homebrew/keg_relocate.rb
-@@ -181,7 +181,11 @@ class Keg
-     relocation = Relocation.new
+@@ -182,6 +182,10 @@ class Keg
      relocation.add_replacement_pair(:prefix, PREFIX_PLACEHOLDER, HOMEBREW_PREFIX.to_s)
      relocation.add_replacement_pair(:cellar, CELLAR_PLACEHOLDER, HOMEBREW_CELLAR.to_s)
      relocation.add_replacement_pair(:repository, REPOSITORY_PLACEHOLDER, HOMEBREW_REPOSITORY.to_s)
@@ -68,6 +67,64 @@ index 09ec44a..32924a4 100644
      relocation.add_replacement_pair(:library, LIBRARY_PLACEHOLDER, HOMEBREW_LIBRARY.to_s)
      relocation.add_replacement_pair(:perl, PERL_PLACEHOLDER, "#{HOMEBREW_PREFIX}/opt/perl/bin/perl")
      if (openjdk = openjdk_dep_name_if_applicable)
+@@ -257,29 +261,36 @@ class Keg
+ 
+       # Split binary by null characters into array and substitute new prefix for old prefix.
+       # Null padding is added if the new string is too short.
+-      file.ensure_writable do
+-        binary = File.binread file
+-        odebug "Replacing build prefix in: #{file}"
+-        binary_strings = binary.split(/#{NULL_BYTE}/o, -1)
+-        match_indices = binary_strings.each_index.select { |i| binary_strings.fetch(i).include?(old_prefix.to_s) }
+-
+-        # Only perform substitution on strings which match prefix regex.
+-        match_indices.each do |i|
+-          s = binary_strings.fetch(i)
+-          binary_strings[i] = s.gsub(old_prefix.to_s, new_prefix.to_s)
+-                               .ljust(s.size, NULL_BYTE)
+-        end
++      binary = File.binread file
++      odebug "Replacing build prefix in: #{file}"
++      binary_strings = binary.split(/#{NULL_BYTE}/o, -1)
++      match_indices = binary_strings.each_index.select { |i| binary_strings.fetch(i).include?(old_prefix.to_s) }
++
++      # Only perform substitution on strings which match prefix regex.
++      match_indices.each do |i|
++        s = binary_strings.fetch(i)
++        binary_strings[i] = s.gsub(old_prefix.to_s, new_prefix.to_s)
++                             .ljust(s.size, NULL_BYTE)
++      end
+ 
+-        # Rejoin strings by null bytes.
+-        patched_binary = binary_strings.join(NULL_BYTE)
+-        if patched_binary.size != binary.size
+-          raise <<~EOS
+-            Patching failed!  Original and patched binary sizes do not match.
+-            Original size: #{binary.size}
+-            Patched size: #{patched_binary.size}
+-          EOS
+-        end
++      # Rejoin strings by null bytes.
++      patched_binary = binary_strings.join(NULL_BYTE)
++      if patched_binary.size != binary.size
++        # conda-brew: the conda-scoped prefix is virtually always longer than
++        # old_prefix, and in-place null-padded substitution can only shrink or
++        # preserve length, never grow it. Leave this file's embedded literal
++        # path unpatched rather than aborting the whole install -- dynamic
++        # linkage (install names/rpaths) is relocated separately and safely
++        # by replace_placeholders_with_locations regardless of this skip.
++        opoo <<~EOS
++          Skipping build-prefix patch for #{file}: replacement text is longer
++          than the original (#{binary.size} -> #{patched_binary.size} bytes).
++          Some embedded absolute paths may still reference #{old_prefix}.
++        EOS
++        next
++      end
+ 
++      file.ensure_writable do
+         file.atomic_write patched_binary
+       end
+       codesign_patched_binary(file.to_s)
 diff --git a/bin/brew b/bin/brew
 index 46b6b39..1f0d4be 100755
 --- a/bin/brew

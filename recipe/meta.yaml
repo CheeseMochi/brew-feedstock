@@ -24,7 +24,7 @@ requirements:
     - git >=2.30.0
 
 build:
-  number: 5
+  number: 6
   skip: true  # [not osx]
 
 test:
