@@ -21,19 +21,10 @@ requirements:
     # would quietly not apply and ship stock, unpatched Homebrew.
     - patch
   run:
-    - bash >=4.0
-    - git >=2.14.3
-    - python >=3.9
-    - ruby >=4.0,<4.1
-    - openssl >=3.0
-    - libcurl >=8.0
-    - libssh2
-    - cmake
-    - libarchive
-    - xz
+    - git >=2.30.0
 
 build:
-  number: 3
+  number: 4
   skip: true  # [not osx]
 
 test:
