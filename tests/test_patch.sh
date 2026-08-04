@@ -58,10 +58,11 @@ check_contains "targets keg_relocate.rb" "$patch_content" "keg_relocate.rb"
 check_contains "targets bin/brew" "$patch_content" "bin/brew"
 
 # Check for key changes the patch should introduce:
-# 1. relaxes compatible_locations? (cellar.is_a?(String) || cellar.size >= prefix.size)
+# 1. compatible_locations? unconditionally allows pouring (relocation handles
+#    the actual path rewriting regardless of Cellar/prefix length)
 # 2. forces skip_linkage = false
 # 3. adds /opt/homebrew as a replacement pair
-check_contains "relaxes compatible_locations for any cellar" "$patch_content" "size >="
+check_contains "makes compatible_locations? unconditionally true" "$patch_content" "bottle is compatible regardless of its declared cellar"
 check_contains "sets skip_linkage to false" "$patch_content" "skip_linkage = false"
 check_contains "aligns HOMEBREW_PREFIX with resolved repository in bin/brew" "$patch_content" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
 

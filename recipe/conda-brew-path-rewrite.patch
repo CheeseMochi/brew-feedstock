@@ -2,27 +2,32 @@ diff --git a/Library/Homebrew/bottle_specification.rb b/Library/Homebrew/bottle_
 index 52894ed..db10e82 100644
 --- a/Library/Homebrew/bottle_specification.rb
 +++ b/Library/Homebrew/bottle_specification.rb
-@@ -77,14 +77,16 @@ class BottleSpecification
-     cellar = tag_to_cellar(tag)
- 
-     return true if RELOCATABLE_CELLARS.include?(cellar)
-+    # For bottles with no specific cellar (cellar: :any), any location works
-+    return true if cellar == :any
-+    # For bottles targeting the default prefix, allow any cellar that fits
-+    return true if cellar.is_a?(String) && cellar.size >= HOMEBREW_CELLAR.to_s.size
- 
-     prefix = Pathname(cellar.to_s).parent.to_s
- 
+@@ -74,19 +74,12 @@ class BottleSpecification
+
+   sig { params(tag: Utils::Bottles::Tag).returns(T::Boolean) }
+   def compatible_locations?(tag: Utils::Bottles.tag)
+-    cellar = tag_to_cellar(tag)
+-
+-    return true if RELOCATABLE_CELLARS.include?(cellar)
+-
+-    prefix = Pathname(cellar.to_s).parent.to_s
+-
 -    cellar_relocatable = cellar.size >= HOMEBREW_CELLAR.to_s.size && ENV["HOMEBREW_RELOCATE_BUILD_PREFIX"].present?
 -    prefix_relocatable = prefix.size >= HOMEBREW_PREFIX.to_s.size && ENV["HOMEBREW_RELOCATE_BUILD_PREFIX"].present?
-+    compatible_cellar = cellar.size >= HOMEBREW_CELLAR.to_s.size
- 
+-
 -    compatible_cellar = cellar == HOMEBREW_CELLAR.to_s || cellar_relocatable
 -    compatible_prefix = prefix == HOMEBREW_PREFIX.to_s || prefix_relocatable
-+    compatible_prefix = prefix.size >= HOMEBREW_PREFIX.to_s.size
- 
-     compatible_cellar && compatible_prefix
+-
+-    compatible_cellar && compatible_prefix
++    # conda-brew relocates every bottle's absolute paths at install time (see
++    # keg_relocate.rb's literal-path replacement pairs and
++    # formula_installer.rb's unconditional relocate_build_prefix call), so
++    # Cellar/prefix length or exact-match no longer gates pouring -- every
++    # bottle is compatible regardless of its declared cellar.
++    true
    end
+
+   # Does the {Bottle} this {BottleSpecification} belongs to need to be relocated?
 diff --git a/Library/Homebrew/formula_installer.rb b/Library/Homebrew/formula_installer.rb
 index 91bbd35..bff4bba 100644
 --- a/Library/Homebrew/formula_installer.rb
