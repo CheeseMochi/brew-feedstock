@@ -2,7 +2,7 @@
 set -e
 
 # Fetch the Homebrew source tarball
-BREW_VERSION="5.1.15"
+BREW_VERSION="6.0.20"
 HOMEBREW_SRC="$SRC_DIR/brew-${BREW_VERSION}"
 
 # Clone Homebrew if the tarball wasn't unpacked by conda-build. Pinned to the
