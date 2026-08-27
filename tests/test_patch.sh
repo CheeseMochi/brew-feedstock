@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PATCH_FILE="$PROJECT_DIR/recipe/conda-brew-path-rewrite.patch"
-VERSION="5.1.11"
+VERSION="$(grep -m1 '{% set version = ' "$PROJECT_DIR/recipe/meta.yaml" | sed -E 's/.*"([^"]+)".*/\1/')"
 
 PASS=0
 FAIL=0
