@@ -169,8 +169,8 @@ check_file_contains "brew.env sets HOMEBREW_NO_AUTO_UPDATE" \
 
 echo ""
 echo "--- Patch landed in built artifact ---"
-check_file_contains "bottle_specification.rb: cellar == :any relaxation" \
-    "$homebrew_dir/Library/Homebrew/bottle_specification.rb" "cellar == :any"
+check_file_contains "bottle_specification.rb: compatible_locations? unconditionally true" \
+    "$homebrew_dir/Library/Homebrew/bottle_specification.rb" "bottle is compatible regardless of its declared cellar"
 check_file_contains "formula_installer.rb: skip_linkage forced false" \
     "$homebrew_dir/Library/Homebrew/formula_installer.rb" "Always run relocation"
 check_file_contains "keg_relocate.rb: /opt/homebrew replacement pair" \

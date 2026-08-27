@@ -1,9 +1,9 @@
 diff --git a/Library/Homebrew/bottle_specification.rb b/Library/Homebrew/bottle_specification.rb
-index 52894ed..db10e82 100644
+index 6f5b1a7..e4cf0e9 100644
 --- a/Library/Homebrew/bottle_specification.rb
 +++ b/Library/Homebrew/bottle_specification.rb
-@@ -74,19 +74,12 @@ class BottleSpecification
-
+@@ -82,19 +82,12 @@ class BottleSpecification
+ 
    sig { params(tag: Utils::Bottles::Tag).returns(T::Boolean) }
    def compatible_locations?(tag: Utils::Bottles.tag)
 -    cellar = tag_to_cellar(tag)
@@ -26,37 +26,40 @@ index 52894ed..db10e82 100644
 +    # bottle is compatible regardless of its declared cellar.
 +    true
    end
-
+ 
    # Does the {Bottle} this {BottleSpecification} belongs to need to be relocated?
 diff --git a/Library/Homebrew/formula_installer.rb b/Library/Homebrew/formula_installer.rb
-index 91bbd35..bff4bba 100644
+index 56eafaa..d50df01 100644
 --- a/Library/Homebrew/formula_installer.rb
 +++ b/Library/Homebrew/formula_installer.rb
-@@ -1534,17 +1534,14 @@ on_request: installed_on_request?, options:)
+@@ -1687,7 +1687,8 @@ on_request: installed_on_request?, options:)
      tab.write
  
      keg = Keg.new(formula.prefix)
--    skip_linkage = formula.bottle_specification.skip_relocation?
+-    skip_linkage = formula.bottle_specification.skip_relocation?(tab:)
 +    # Always run relocation - placeholders in bottles handle path rewriting
 +    skip_linkage = false
-     keg.replace_placeholders_with_locations(tab.changed_files, skip_linkage:)
- 
-     cellar = formula.bottle_specification.tag_to_cellar(Utils::Bottles.tag)
-     return if [:any, :any_skip_relocation].include?(cellar)
+     if Homebrew::EnvConfig.bottle_domain_custom? && tab.changed_files.nil?
+       if self.class.show_missing_bottle_metadata_warning?
+         opoo <<~EOS
+@@ -1705,11 +1706,7 @@ on_request: installed_on_request?, options:)
+     return if BottleSpecification::RELOCATABLE_CELLARS.include?(cellar)
  
      prefix = Pathname(cellar).parent.to_s
 -    return if cellar == HOMEBREW_CELLAR.to_s && prefix == HOMEBREW_PREFIX.to_s
 -
 -    return unless ENV["HOMEBREW_RELOCATE_BUILD_PREFIX"]
 -
-     keg.relocate_build_prefix(keg, prefix, HOMEBREW_PREFIX)
+-    keg.relocate_build_prefix(keg, prefix, HOMEBREW_PREFIX, files: tab.binary_relocation_files)
++    keg.relocate_build_prefix(keg, prefix, HOMEBREW_PREFIX)
    end
  
+   sig { override.params(output: T.nilable(String)).void }
 diff --git a/Library/Homebrew/keg_relocate.rb b/Library/Homebrew/keg_relocate.rb
-index 09ec44a..e738052 100644
+index ce43f2f..c94bfbd 100644
 --- a/Library/Homebrew/keg_relocate.rb
 +++ b/Library/Homebrew/keg_relocate.rb
-@@ -182,6 +182,10 @@ class Keg
+@@ -185,6 +185,10 @@ class Keg
      relocation.add_replacement_pair(:prefix, PREFIX_PLACEHOLDER, HOMEBREW_PREFIX.to_s)
      relocation.add_replacement_pair(:cellar, CELLAR_PLACEHOLDER, HOMEBREW_CELLAR.to_s)
      relocation.add_replacement_pair(:repository, REPOSITORY_PLACEHOLDER, HOMEBREW_REPOSITORY.to_s)
@@ -67,64 +70,29 @@ index 09ec44a..e738052 100644
      relocation.add_replacement_pair(:library, LIBRARY_PLACEHOLDER, HOMEBREW_LIBRARY.to_s)
      relocation.add_replacement_pair(:perl, PERL_PLACEHOLDER, "#{HOMEBREW_PREFIX}/opt/perl/bin/perl")
      if (openjdk = openjdk_dep_name_if_applicable)
-@@ -257,29 +261,36 @@ class Keg
- 
-       # Split binary by null characters into array and substitute new prefix for old prefix.
-       # Null padding is added if the new string is too short.
--      file.ensure_writable do
--        binary = File.binread file
--        odebug "Replacing build prefix in: #{file}"
--        binary_strings = binary.split(/#{NULL_BYTE}/o, -1)
--        match_indices = binary_strings.each_index.select { |i| binary_strings.fetch(i).include?(old_prefix.to_s) }
--
--        # Only perform substitution on strings which match prefix regex.
--        match_indices.each do |i|
--          s = binary_strings.fetch(i)
--          binary_strings[i] = s.gsub(old_prefix.to_s, new_prefix.to_s)
--                               .ljust(s.size, NULL_BYTE)
--        end
-+      binary = File.binread file
-+      odebug "Replacing build prefix in: #{file}"
-+      binary_strings = binary.split(/#{NULL_BYTE}/o, -1)
-+      match_indices = binary_strings.each_index.select { |i| binary_strings.fetch(i).include?(old_prefix.to_s) }
-+
-+      # Only perform substitution on strings which match prefix regex.
-+      match_indices.each do |i|
-+        s = binary_strings.fetch(i)
-+        binary_strings[i] = s.gsub(old_prefix.to_s, new_prefix.to_s)
-+                             .ljust(s.size, NULL_BYTE)
-+      end
- 
--        # Rejoin strings by null bytes.
--        patched_binary = binary_strings.join(NULL_BYTE)
--        if patched_binary.size != binary.size
+@@ -306,11 +310,18 @@ class Keg
+         # Rejoin strings by null bytes.
+         patched_binary = binary_strings.join(NULL_BYTE)
+         if patched_binary.size != binary.size
 -          raise <<~EOS
 -            Patching failed!  Original and patched binary sizes do not match.
 -            Original size: #{binary.size}
 -            Patched size: #{patched_binary.size}
--          EOS
--        end
-+      # Rejoin strings by null bytes.
-+      patched_binary = binary_strings.join(NULL_BYTE)
-+      if patched_binary.size != binary.size
-+        # conda-brew: the conda-scoped prefix is virtually always longer than
-+        # old_prefix, and in-place null-padded substitution can only shrink or
-+        # preserve length, never grow it. Leave this file's embedded literal
-+        # path unpatched rather than aborting the whole install -- dynamic
-+        # linkage (install names/rpaths) is relocated separately and safely
-+        # by replace_placeholders_with_locations regardless of this skip.
-+        opoo <<~EOS
-+          Skipping build-prefix patch for #{file}: replacement text is longer
-+          than the original (#{binary.size} -> #{patched_binary.size} bytes).
-+          Some embedded absolute paths may still reference #{old_prefix}.
-+        EOS
-+        next
-+      end
++          # conda-brew: the conda-scoped prefix is virtually always longer than
++          # old_prefix, and in-place null-padded substitution can only shrink or
++          # preserve length, never grow it. Leave this file's embedded literal
++          # path unpatched rather than aborting the whole install -- dynamic
++          # linkage (install names/rpaths) is relocated separately and safely
++          # by replace_placeholders_with_locations regardless of this skip.
++          opoo <<~EOS
++            Skipping build-prefix patch for #{file}: replacement text is longer
++            than the original (#{binary.size} -> #{patched_binary.size} bytes).
++            Some embedded absolute paths may still reference #{old_prefix}.
+           EOS
++          next
+         end
  
-+      file.ensure_writable do
          file.atomic_write patched_binary
-       end
-       codesign_patched_binary(file.to_s)
 diff --git a/bin/brew b/bin/brew
 index 46b6b39..1f0d4be 100755
 --- a/bin/brew
