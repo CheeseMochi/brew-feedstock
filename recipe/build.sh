@@ -43,7 +43,7 @@ fi
 # Remove git repo to keep package small
 rm -rf "${HOMEBREW_INSTALL_DIR}/.git"
 
-# --- Generate brew.env with git remote config ---
+# --- Generate brew.env ---
 # HOMEBREW_NO_AUTO_UPDATE/HOMEBREW_NO_ANALYTICS are also set by
 # brew-activate.sh, but that only takes effect once the env is `conda
 # activate`d. brew.env is read directly by bin/brew on every invocation
@@ -51,12 +51,14 @@ rm -rf "${HOMEBREW_INSTALL_DIR}/.git"
 # `brew install` from running an implicit `brew update` -- which re-clones
 # Homebrew's repo, undoing the .git removal above and every patched file,
 # including this package's own path-rewrite patch.
+#
+# This is not a shell script: bin/brew only loads lines that start with
+# HOMEBREW_ and passes each one to `export` as-is. An `export ` prefix makes it
+# skip the line without any error, and quotes become part of the value.
 mkdir -p "${HOMEBREW_INSTALL_DIR}/etc/homebrew"
 cat > "${HOMEBREW_INSTALL_DIR}/etc/homebrew/brew.env" << 'BREW_ENV'
-export HOMEBREW_BREW_GIT_REMOTE="https://github.com/Homebrew/brew.git"
-export HOMEBREW_CORE_DEFAULT_GIT_REMOTE="https://github.com/Homebrew/homebrew-core.git"
-export HOMEBREW_NO_AUTO_UPDATE=1
-export HOMEBREW_NO_ANALYTICS=1
+HOMEBREW_NO_AUTO_UPDATE=1
+HOMEBREW_NO_ANALYTICS=1
 BREW_ENV
 
 # --- Generate version.sh ---
