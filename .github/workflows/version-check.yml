@@ -33,6 +33,11 @@ jobs:
           branch="bot/bump-brew"
           bot_email="github-actions[bot]@users.noreply.github.com"
 
+          # Must filter to open PRs: `gh pr view <branch>` also matches closed
+          # and merged PRs, and this branch name is reused for every bump, so
+          # it would find the last merged bump PR and never open a new one.
+          open_pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+
           # Don't clobber in-progress human work (e.g. a maintainer mid-way
           # through reworking the patch for this release) that happens to
           # live on this same fixed branch name -- only the bot's own prior
@@ -42,8 +47,8 @@ jobs:
             last_author=$(git log -1 --format='%ae' "origin/$branch")
             if [ "$last_author" != "$bot_email" ]; then
               echo "origin/$branch has non-bot commits -- leaving it untouched"
-              if gh pr view "$branch" >/dev/null 2>&1; then
-                gh pr comment "$branch" --body "brew ${NEW_VERSION} is now available, but \`$branch\` has commits this bot didn't make, so it was left alone. Rebase onto the bump manually, or delete the branch to let automation retake it next run." || true
+              if [ -n "$open_pr" ]; then
+                gh pr comment "$open_pr" --body "brew ${NEW_VERSION} is now available, but \`$branch\` has commits this bot didn't make, so it was left alone. Rebase onto the bump manually, or delete the branch to let automation retake it next run." || true
               fi
               exit 0
             fi
@@ -67,8 +72,8 @@ jobs:
 
           Do not auto-merge on green CI alone. See RELEASING.md."
 
-          if gh pr view "$branch" >/dev/null 2>&1; then
-            gh pr edit "$branch" --title "Bump brew to ${NEW_VERSION}" --body "$body"
+          if [ -n "$open_pr" ]; then
+            gh pr edit "$open_pr" --title "Bump brew to ${NEW_VERSION}" --body "$body"
           else
             gh pr create --title "Bump brew to ${NEW_VERSION}" --body "$body" --head "$branch"
           fi
