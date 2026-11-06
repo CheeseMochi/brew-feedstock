@@ -25,7 +25,9 @@ check() {
 
 check_contains() {
     local desc="$1" haystack="$2" needle="$3"
-    if echo "$haystack" | grep -qF "$needle"; then
+    # `--` so a needle anchored on a diff's leading '-' (i.e. asserting a line
+    # was *removed* by the patch, not just mentioned) isn't parsed as options.
+    if echo "$haystack" | grep -qF -- "$needle"; then
         echo "   PASS $desc"
         PASS=$((PASS + 1))
     else
@@ -62,9 +64,17 @@ check_contains "targets bin/brew" "$patch_content" "bin/brew"
 #    the actual path rewriting regardless of Cellar/prefix length)
 # 2. forces skip_linkage = false
 # 3. adds /opt/homebrew as a replacement pair
+# 4. downgrades relocate_build_prefix's size-mismatch raise to a warning+skip.
+#    A conda prefix is always longer than /opt/homebrew, and the in-place
+#    null-padded rewrite can only shrink or hold length, so any bottle with
+#    literal build-prefix strings in its binaries (openssl@3) hits this. A
+#    published build that lost this hunk aborted every such install -- see
+#    test_e2e.sh Step 3c for the runtime half of this guard.
 check_contains "makes compatible_locations? unconditionally true" "$patch_content" "bottle is compatible regardless of its declared cellar"
 check_contains "sets skip_linkage to false" "$patch_content" "skip_linkage = false"
 check_contains "aligns HOMEBREW_PREFIX with resolved repository in bin/brew" "$patch_content" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
+check_contains "warns and skips instead of raising on build-prefix size mismatch" "$patch_content" "Skipping build-prefix patch for"
+check_contains "removes upstream's hard raise on size mismatch" "$patch_content" "-            Patching failed!"
 
 echo ""
 

@@ -56,6 +56,20 @@ check_file_contains() {
     fi
 }
 
+# Inverse of check_file_contains: some hunks must *remove* upstream code, not
+# merely add something beside it. Reports FAIL for a missing file too, so a
+# wrong path can't masquerade as a passing absence check.
+check_file_lacks() {
+    local desc="$1" file="$2" needle="$3"
+    if [ -f "$file" ] && ! grep -qF -- "$needle" "$file"; then
+        echo "   PASS $desc"
+        PASS=$((PASS + 1))
+    else
+        echo "   FAIL $desc (found '$needle' in $file, or file missing)"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 echo ""
 echo "=== Build validation ==="
 
@@ -175,6 +189,16 @@ check_file_contains "formula_installer.rb: skip_linkage forced false" \
     "$homebrew_dir/Library/Homebrew/formula_installer.rb" "Always run relocation"
 check_file_contains "keg_relocate.rb: /opt/homebrew replacement pair" \
     "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "default_macos_arm"
+# A conda prefix is always longer than /opt/homebrew, and relocate_build_prefix
+# rewrites in place with null padding (can only shrink or hold length), so every
+# bottle carrying literal build-prefix strings in its binaries -- openssl@3 --
+# trips the size mismatch. Upstream raises and aborts the install; this patch
+# must warn and skip instead. A published build that lost this hunk shipped and
+# broke `brew install openssl@3`; test_e2e.sh Step 3c is the runtime half.
+check_file_contains "keg_relocate.rb: size mismatch warns and skips" \
+    "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "Skipping build-prefix patch for"
+check_file_lacks "keg_relocate.rb: upstream's hard raise on size mismatch is gone" \
+    "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "Patching failed!"
 check_file_contains "bin/brew: HOMEBREW_PREFIX aligned with resolved repository" \
     "$homebrew_dir/bin/brew" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
 

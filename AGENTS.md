@@ -54,8 +54,9 @@ tests/
   test_scripts.sh              # validates activate/deactivate/post-link with mock $CONDA_PREFIX
   test_patch.sh                # clones brew source, dry-runs patch, diffs changes
   test_build.sh                # runs conda-build, extracts and validates the .conda artifact
-  test_e2e.sh                  # build → install in temp env → brew install hello + sqlite →
-                                # verify bottle used and relocation actually rewrote paths → deactivate
+  test_e2e.sh                  # build → install in temp env → brew install hello + sqlite +
+                                # openssl@3 → verify bottle used, relocation actually rewrote paths,
+                                # and the build-prefix size mismatch warns instead of aborting → deactivate
 .github/
   scripts/bump_brew_version.py # bumps meta.yaml + build.sh to a given/latest brew version
   workflows/
@@ -78,6 +79,15 @@ See `RELEASING.md` for what each release-related workflow actually does and why.
   beyond the narrow mitigations already in place (only the `brew` CLI itself is symlinked into
   `$PREFIX/bin`; the activate/deactivate hooks use package-specific filenames). A broader
   conda/homebrew integration is a separate, bigger future project.
+- Bottles that bake *literal* absolute paths into binary data (openssl@3's `OPENSSLDIR`,
+  `MODULESDIR`) can only be partially relocated. `relocate_build_prefix` rewrites in place with
+  null padding, so it can shrink or hold length but never grow — and a conda prefix is always
+  longer than `/opt/homebrew` (13 chars). The patch downgrades upstream's hard "Patching failed!"
+  raise to a warning and skips the file; the consequence is that brew's openssl keeps looking for
+  `cert.pem` under `/opt/homebrew`, so TLS verification fails for anything linked against it
+  (workaround: `SSL_CERT_FILE`/`SSL_CERT_DIR`). Dylib *linkage* is unaffected — those references
+  are `@@HOMEBREW_PREFIX@@` placeholders handled by a separate code path. `test_e2e.sh` Step 3c
+  and the `keg_relocate.rb` assertions in `test_patch.sh`/`test_build.sh` guard this.
 - `post-link.sh` runs as a conda link script and gets `$PREFIX` (the env being linked into) --
   *not* `$CONDA_PREFIX`, which is only set during activation. Don't use `$CONDA_PREFIX` in that
   file; it silently turns every path into a filesystem-root path with no error (the exact class
