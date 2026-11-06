@@ -49,3 +49,5 @@ auto-tags; a human always reviews before a version bump lands or a release ships
   env var instead (already set in CI).
 - **`brew update` is dangerous in this packaging** — it re-clones Homebrew's repo, undoing the shipped
   patch. `build.sh` disables auto-update via `etc/homebrew/brew.env`; don't remove that.
+- **`brew.env` is not a shell script** — `bin/brew` skips any line that doesn't start with `HOMEBREW_`,
+  so no `export` prefix, and no quotes (they become part of the value).

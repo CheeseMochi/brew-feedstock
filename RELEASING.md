@@ -39,9 +39,12 @@ would leave this chronically behind). It:
 3. Pushes those changes to a fixed branch, `bot/bump-brew`, and opens (or updates, if
    already open) a PR from it. Using a fixed branch name means a second release landing
    before the first bump PR is merged updates the same PR instead of piling up parallel
-   ones. The bot **won't** overwrite that branch if its last commit wasn't made by the
-   bot itself (e.g. a maintainer pushed patch-rework commits there) — it leaves a comment
-   on the PR instead and waits for a human to reconcile it.
+   ones. If the open PR already has this exact bump on top of current `main`, the run
+   stops here, so nothing is re-pushed and CI isn't re-run. The bot **won't** overwrite
+   that branch if its last commit wasn't made by the bot itself (e.g. a maintainer pushed
+   patch-rework commits there) — it leaves a comment on the PR instead and waits for a
+   human to reconcile it. With no open PR to comment on, it raises a `::warning::` on the
+   workflow run.
 4. Explicitly triggers `test.yml` and `e2e.yml` against that branch via
    `gh workflow run ... --ref`. This step exists only because of a GitHub Actions
    restriction: pushes and PRs authored by the workflow's own `GITHUB_TOKEN` do not
@@ -223,8 +226,8 @@ git diff HEAD > ~/coding/brew-feedstock/recipe/conda-brew-path-rewrite.patch
 doesn't hand you an empty patch. Clearing the `.rej`/`.orig` files first keeps the next apply
 attempt readable — they're untracked, so they never reach the patch either way.
 
-The rework has to preserve five behaviors. Four are asserted by `tests/run.sh patch` and
-`build`; the fifth is on you to eyeball, so read the regenerated diff before committing it:
+The rework has to preserve six behaviors. Five are asserted by `tests/run.sh patch` and
+`build`; the sixth is on you to eyeball, so read the regenerated diff before committing it:
 
 | File | Must still | Asserted? |
 |---|---|:--:|

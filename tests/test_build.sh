@@ -180,6 +180,10 @@ check_exists "etc/conda/deactivate.d/brew-deactivate.sh exists" \
     "$EXTRACT_DIR/etc/conda/deactivate.d/brew-deactivate.sh"
 check_file_contains "brew.env sets HOMEBREW_NO_AUTO_UPDATE" \
     "$homebrew_dir/etc/homebrew/brew.env" "HOMEBREW_NO_AUTO_UPDATE=1"
+# bin/brew skips any line that doesn't start with HOMEBREW_, so an `export `
+# prefix disables the setting while the check above still passes.
+check_file_lacks "brew.env has no 'export' prefix (bin/brew would skip the line)" \
+    "$homebrew_dir/etc/homebrew/brew.env" "export "
 
 echo ""
 echo "--- Patch landed in built artifact ---"
