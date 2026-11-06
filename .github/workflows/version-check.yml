@@ -49,7 +49,20 @@ jobs:
               echo "origin/$branch has non-bot commits -- leaving it untouched"
               if [ -n "$open_pr" ]; then
                 gh pr comment "$open_pr" --body "brew ${NEW_VERSION} is now available, but \`$branch\` has commits this bot didn't make, so it was left alone. Rebase onto the bump manually, or delete the branch to let automation retake it next run." || true
+              else
+                # No PR to comment on, so nothing else would surface this.
+                echo "::warning::brew ${NEW_VERSION} is available, but no PR was opened: $branch has non-bot commits and no open PR. Delete the branch to let automation retake it."
               fi
+              exit 0
+            fi
+
+            # meta.yaml on main stays behind until the bump merges, so this
+            # step runs every day. Skip when the open PR already has this exact
+            # bump on top of current main: re-pushing would only re-run CI.
+            if [ -n "$open_pr" ] \
+              && [ "$(git rev-parse "origin/$branch^")" = "$(git rev-parse HEAD)" ] \
+              && git diff --quiet "origin/$branch" -- recipe/meta.yaml recipe/build.sh; then
+              echo "PR #$open_pr already bumps to ${NEW_VERSION} on current main -- nothing to do"
               exit 0
             fi
           fi
