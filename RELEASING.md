@@ -36,10 +36,11 @@ would leave this chronically behind). It:
 2. If newer, runs `.github/scripts/bump_brew_version.py`, which rewrites `meta.yaml`
    (version, `source.sha256`, `build.number` reset to `0`) and `build.sh`'s
    `BREW_VERSION` in place.
-3. Pushes those changes to a fixed branch, `bot/bump-brew`, and opens (or updates, if
-   already open) a PR from it. Using a fixed branch name means a second release landing
-   before the first bump PR is merged updates the same PR instead of piling up parallel
-   ones. If the open PR already has this exact bump on top of current `main`, the run
+3. Pushes those changes to a branch per `X.Y` series, `bot/bump-brew-<X.Y>` (e.g.
+   `bot/bump-brew-7.0`), and opens (or updates, if already open) a PR from it. A patch
+   release (`7.0.12` -> `7.0.13`) landing before that PR is merged updates it, so
+   in-between patch releases are skipped. A new series (`7.0` -> `7.1`, `7.x` -> `8.0`)
+   gets a separate PR, so an unmerged series is never replaced. If the open PR already has this exact bump on top of current `main`, the run
    stops here, so nothing is re-pushed and CI isn't re-run. The bot **won't** overwrite
    that branch if its last commit wasn't made by the bot itself (e.g. a maintainer pushed
    patch-rework commits there) — it leaves a comment on the PR instead and waits for a
@@ -88,14 +89,24 @@ conda activate condabrew    # every tests/run.sh and conda-build call needs this
 
 `gh` commands have a web-UI equivalent if you'd rather click.
 
+Both runbooks use `$branch` for the bump PR's head branch:
+
+```bash
+branch=bot/bump-brew-7.0    # the series the PR bumps to
+```
+
+**If more than one bump PR is open, handle them oldest series first.** Each one is based on
+`main`, so merging `7.0` after `7.1` would downgrade brew. Once the older one merges, the
+bot rebases the newer one onto `main` on its next daily run.
+
 ### Runbook A — the bump PR is green
 
 **1. Read the e2e output, don't just trust the checkmark.** This is the whole reason there's
 no auto-merge.
 
 ```bash
-gh pr checks bot/bump-brew
-gh run list --workflow=e2e.yml --branch bot/bump-brew --limit 1
+gh pr checks "$branch"
+gh run list --workflow=e2e.yml --branch "$branch" --limit 1
 gh run view <run-id> --log | grep -E '   (PASS|FAIL|WARN)'
 ```
 
@@ -112,7 +123,7 @@ What actually needs eyes, beyond "no FAIL lines":
 **2. Reproduce locally (optional, but it's the same suite CI ran):**
 
 ```bash
-git fetch origin bot/bump-brew && git checkout bot/bump-brew
+git fetch origin "$branch" && git checkout "$branch"
 bash tests/run.sh all
 ```
 
@@ -120,12 +131,12 @@ bash tests/run.sh all
 
 ```bash
 git checkout main
-gh pr merge bot/bump-brew --squash --delete-branch
+gh pr merge "$branch" --squash --delete-branch
 ```
 
-Deleting matters. `version-check.yml` refuses to force-push `bot/bump-brew` if its last commit
+Deleting matters. `version-check.yml` refuses to force-push a bump branch if its last commit
 wasn't the bot's own — so leaving a merged branch behind (especially one carrying your patch-rework
-commits) blocks the next automated bump and turns it into a PR comment instead.
+commits) blocks the next automated bump in that series and turns it into a warning instead.
 
 **4. Confirm the three version sites agree, then tag:**
 
@@ -188,7 +199,7 @@ failure reproduces locally from the branch, and that's the intended path.
 **1. Get the branch and the version it's bumping to:**
 
 ```bash
-git fetch origin bot/bump-brew && git checkout bot/bump-brew
+git fetch origin "$branch" && git checkout "$branch"
 version=$(grep -m1 '{% set version' recipe/meta.yaml | sed -E 's/.*"([^"]+)".*/\1/')
 echo "$version"
 ```
@@ -254,7 +265,7 @@ bash tests/run.sh patch && bash tests/run.sh quick && bash tests/run.sh e2e
 ```bash
 git add recipe/conda-brew-path-rewrite.patch
 git commit -m "Rework path-rewrite patch for brew $version"
-git push origin bot/bump-brew
+git push origin "$branch"
 ```
 
 Two consequences of pushing there as a human:
@@ -352,4 +363,4 @@ Rewrites `recipe/meta.yaml` and `recipe/build.sh` in place (version, `source.sha
 `build.number` reset to `0`) — the same thing `version-check.yml` runs, just aimed at a
 version you pick. From there it's an ordinary branch: run `bash tests/run.sh all`, open a
 PR by hand, and if the patch needs rework, follow Runbook B step 3 onward under "Cutting a
-release" (substituting your branch name for `bot/bump-brew`).
+release" (using your branch name as `$branch`).
