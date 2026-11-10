@@ -30,7 +30,12 @@ jobs:
           OLD_VERSION: ${{ steps.bump.outputs.old_version }}
         run: |
           set -euo pipefail
-          branch="bot/bump-brew"
+          # One branch, and so one PR, per X.Y series: a patch release
+          # (7.0.12 -> 7.0.13) updates its series' open PR, while a new
+          # series (7.0 -> 7.1, 7.x -> 8.0) gets its own PR instead of
+          # replacing an unmerged one.
+          series="${NEW_VERSION%.*}"
+          branch="bot/bump-brew-${series}"
           bot_email="github-actions[bot]@users.noreply.github.com"
 
           # Must filter to open PRs: `gh pr view <branch>` also matches closed
@@ -77,6 +82,8 @@ jobs:
           body="Automated version bump: ${OLD_VERSION} -> ${NEW_VERSION}
 
           Upstream release notes: https://github.com/Homebrew/brew/releases/tag/${NEW_VERSION}
+
+          Later ${series}.x releases update this PR; a new X.Y series gets its own PR. If more than one bump PR is open, merge them oldest series first -- merging an older one after a newer one would downgrade brew.
 
           Before merging:
           - [ ] \`quick\` and \`e2e\` checks on this PR are green
