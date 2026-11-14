@@ -74,7 +74,9 @@ check_contains "makes compatible_locations? unconditionally true" "$patch_conten
 check_contains "sets skip_linkage to false" "$patch_content" "skip_linkage = false"
 check_contains "aligns HOMEBREW_PREFIX with resolved repository in bin/brew" "$patch_content" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
 check_contains "warns and skips instead of raising on build-prefix size mismatch" "$patch_content" "Skipping build-prefix patch for"
-check_contains "removes upstream's hard raise on size mismatch" "$patch_content" "-            Patching failed!"
+# brew 7.0+ raises ArgumentError up front for a longer prefix (before any
+# per-file size check), so the guard returns early rather than replacing the raise.
+check_contains "guards relocate_build_prefix against a longer prefix" "$patch_content" "+    if new_prefix.to_s.bytesize > old_prefix.to_s.bytesize"
 
 echo ""
 
