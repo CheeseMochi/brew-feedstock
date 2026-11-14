@@ -201,8 +201,10 @@ check_file_contains "keg_relocate.rb: /opt/homebrew replacement pair" \
 # broke `brew install openssl@3`; test_e2e.sh Step 3c is the runtime half.
 check_file_contains "keg_relocate.rb: size mismatch warns and skips" \
     "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "Skipping build-prefix patch for"
-check_file_lacks "keg_relocate.rb: upstream's hard raise on size mismatch is gone" \
-    "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "Patching failed!"
+# brew 7.0+ raises ArgumentError up front for a longer prefix; the patch returns
+# early ahead of it, so upstream's (now unreachable) raises stay in the file.
+check_file_contains "keg_relocate.rb: longer-prefix guard returns early" \
+    "$homebrew_dir/Library/Homebrew/keg_relocate.rb" "if new_prefix.to_s.bytesize > old_prefix.to_s.bytesize"
 check_file_contains "bin/brew: HOMEBREW_PREFIX aligned with resolved repository" \
     "$homebrew_dir/bin/brew" 'HOMEBREW_PREFIX="${HOMEBREW_REPOSITORY}"'
 
