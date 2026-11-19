@@ -1,5 +1,5 @@
 # Every bottle install rewrites /opt/homebrew → $CONDA_PREFIX/homebrew at install time
-{% set version = "7.0.13" %}
+{% set version = "7.0.15" %}
 
 package:
   name: brew
@@ -7,7 +7,7 @@ package:
 
 source:
   - url: https://github.com/Homebrew/brew/archive/refs/tags/{{ version }}.tar.gz
-    sha256: 5e7c93f7bf0450a427e83c9199098a61fa52ce292fc9ebdca49227ee05f0779d
+    sha256: 6191f34dc4d99b86043112bf304b6a012da193d302d4b62a48eafdbb738121e3
   # .github/scripts/bump_brew_version.py computes and updates this; see RELEASING.md.
 
 requirements:
